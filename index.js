@@ -1,53 +1,51 @@
-import 'dotenv/config';
-import { Client, GatewayIntentBits, Events } from 'discord.js';
-import * as tiendaCmd from './commands/tienda.js';
-import { initDB } from './db.js';
+// index.js
+import { Client, GatewayIntentBits, Collection, Partials } from 'discord.js';
+import fs from 'fs';
+import path from 'path';
+import dotenv from 'dotenv';
+dotenv.config();
 
-const config = {
-  token: process.env.DISCORD_TOKEN,
-  clientId: process.env.CLIENT_ID,
-  guildId: process.env.GUILD_ID
-};
+import './database.js'; // Conexión DB
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-
-client.once(Events.ClientReady, async () => {
-  await initDB();
-  console.log(`✨ ¡Bot conectado como ${client.user.tag}! ✨`);
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
+  partials: [Partials.Channel],
 });
 
-client.on(Events.InteractionCreate, async interaction => {
+client.commands = new Collection();
+
+const commandsPath = path.join(process.cwd(), 'commands');
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+
+for (const file of commandFiles) {
+  const filePath = path.join(commandsPath, file);
+  const command = await import(`./commands/${file}`);
+  if ('data' in command && 'execute' in command) {
+    client.commands.set(command.data.name, command);
+  } else {
+    console.warn(`El comando en ${filePath} no tiene "data" o "execute".`);
+  }
+}
+
+client.once('ready', () => {
+  console.log(`✅ Bot listo como ${client.user.tag}`);
+});
+
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isChatInputCommand()) return;
+
+  const command = client.commands.get(interaction.commandName);
+  if (!command) return;
+
   try {
-    if (interaction.isChatInputCommand()) {
-      if (interaction.commandName === 'tienda') {
-        await tiendaCmd.execute(interaction);
-      }
-      if (interaction.commandName === 'darargentum') {
-        await tiendaCmd.darArgentum(interaction);
-      }
-      if (interaction.commandName === 'argentum') {
-        await tiendaCmd.argentum(interaction);
-      }
-    }
-
-    if (interaction.isStringSelectMenu() && interaction.customId === 'categoria_tienda') {
-      await tiendaCmd.handleCategoria(interaction);
-    }
-
-    if (interaction.isStringSelectMenu() && interaction.customId.startsWith('comprar_item_')) {
-      await tiendaCmd.handleSelect(interaction);
-    }
-
-    if (interaction.isModalSubmit() && interaction.customId.startsWith('steamid_modal_')) {
-      await tiendaCmd.handleModal(interaction);
-    }
+    await command.execute(interaction);
   } catch (error) {
-    console.error('Error en interacción:', error);
-    if (interaction.deferred || interaction.replied) {
-      await interaction.followUp({ content: '❌ Hubo un error procesando tu interacción.', flags: 4096 });
-    } else {
-      await interaction.reply({ content: '❌ Hubo un error procesando tu interacción.', flags: 4096 });
-    }
+    console.error(error);
+    await interaction.reply({ content: '❌ Ocurrió un error al ejecutar este comando.', ephemeral: true });
   }
 });
 

@@ -1,15 +1,16 @@
 {
-  "name": "bot",
+  "name": "dayz-p2p-bot",
   "version": "1.0.0",
-  "type": "module",
+  "description": "Bot de tienda para DayZ con economía en Discord",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "node index.js",
     "deploy": "node deploy-commands.js"
   },
   "dependencies": {
-    "discord.js": "^14.0.0",
-    "dotenv": "^16.0.0",
-    "pg": "^8.16.3"
+    "discord.js": "^14.11.0",
+    "dotenv": "^16.3.1",
+    "pg": "^8.11.0"
   }
 }

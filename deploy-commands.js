@@ -1,30 +1,32 @@
-import 'dotenv/config';
 import { REST, Routes } from 'discord.js';
-import { data as tiendaData, darArgentumData, argentumData } from './commands/tienda.js';
+import { config } from 'dotenv';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const config = {
-  token: process.env.DISCORD_TOKEN,
-  clientId: process.env.CLIENT_ID,
-  guildId: process.env.GUILD_ID
-};
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const commands = [
-  tiendaData,
-  darArgentumData,
-  argentumData
-].map(cmd => cmd.toJSON());
+config(); // carga variables de entorno si estás testeando localmente
 
-const rest = new REST({ version: '10' }).setToken(config.token);
+const commands = [];
+const commandsPath = path.join(__dirname, 'commands');
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
-(async () => {
-  try {
-    console.log('🚀 Subiendo comandos...');
-    await rest.put(
-      Routes.applicationGuildCommands(config.clientId, config.guildId),
-      { body: commands },
-    );
-    console.log('✅ ¡Comandos registrados!');
-  } catch (error) {
-    console.error(error);
-  }
-})();
+for (const file of commandFiles) {
+  const command = await import(`./commands/${file}`);
+  commands.push(command.default.data.toJSON());
+}
+
+const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+
+try {
+  console.log('🔁 Actualizando comandos slash...');
+  await rest.put(
+    Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
+    { body: commands },
+  );
+  console.log('✅ ¡Comandos cargados exitosamente!');
+} catch (error) {
+  console.error('❌ Error al subir comandos:', error);
+}
