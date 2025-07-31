@@ -3,7 +3,7 @@ import { REST, Routes } from 'discord.js';
 import { data as tiendaData, darArgentumData, argentumData } from './commands/tienda.js';
 
 const config = {
-  token: process.env.TOKEN,
+  token: process.env.DISCORD_TOKEN,
   clientId: process.env.CLIENT_ID,
   guildId: process.env.GUILD_ID
 };

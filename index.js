@@ -1,17 +1,18 @@
 import 'dotenv/config';
 import { Client, GatewayIntentBits, Events } from 'discord.js';
-import fs from 'fs';
 import * as tiendaCmd from './commands/tienda.js';
+import { initDB } from './db.js';
 
 const config = {
-  token: process.env.TOKEN,
+  token: process.env.DISCORD_TOKEN,
   clientId: process.env.CLIENT_ID,
   guildId: process.env.GUILD_ID
 };
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-client.once(Events.ClientReady, () => {
+client.once(Events.ClientReady, async () => {
+  await initDB();
   console.log(`✨ ¡Bot conectado como ${client.user.tag}! ✨`);
 });
 
@@ -29,17 +30,14 @@ client.on(Events.InteractionCreate, async interaction => {
       }
     }
 
-    // Handler para seleccionar categoría
     if (interaction.isStringSelectMenu() && interaction.customId === 'categoria_tienda') {
       await tiendaCmd.handleCategoria(interaction);
     }
 
-    // Handler para seleccionar ítem
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith('comprar_item_')) {
       await tiendaCmd.handleSelect(interaction);
     }
 
-    // Handler para el modal de compra
     if (interaction.isModalSubmit() && interaction.customId.startsWith('steamid_modal_')) {
       await tiendaCmd.handleModal(interaction);
     }

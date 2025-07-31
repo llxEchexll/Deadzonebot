@@ -7,7 +7,7 @@ import {
   SlashCommandBuilder,
   PermissionFlagsBits
 } from 'discord.js';
-import fs from 'fs';
+import { sumarSaldo, consultarSaldo } from '../db.js';
 
 // Categorías y sus ítems
 const categorias = [
@@ -56,7 +56,6 @@ export async function execute(interaction) {
   });
 }
 
-// Handler para seleccionar categoría
 export async function handleCategoria(interaction) {
   const categoria = interaction.values[0];
   const items = itemsPorCategoria[categoria];
@@ -84,15 +83,12 @@ export async function handleCategoria(interaction) {
   });
 }
 
-// Handler para seleccionar ítem y pedir SteamID
 export async function handleSelect(interaction) {
-  // Detectar la categoría desde el customId
   const categoria = interaction.customId.replace('comprar_item_', '');
   const items = itemsPorCategoria[categoria];
   const selected = interaction.values[0];
   const item = items.find(i => i.value === selected);
 
-  // Solicita SteamID con un modal
   const modal = new ModalBuilder()
     .setCustomId(`steamid_modal_${item.value}`)
     .setTitle(`Comprar ${item.label} ${item.emoji}`);
@@ -109,9 +105,7 @@ export async function handleSelect(interaction) {
   await interaction.showModal(modal);
 }
 
-// Handler para procesar la compra
 export async function handleModal(interaction) {
-  // Obtener el item desde el customId
   const itemValue = interaction.customId.replace('steamid_modal_', '');
   let item;
   for (const cat of Object.values(itemsPorCategoria)) {
@@ -127,13 +121,8 @@ export async function handleModal(interaction) {
   }
 
   const steamid = interaction.fields.getTextInputValue('steamid');
-  // Leer y actualizar el saldo
-  let saldos = {};
-  try {
-    saldos = JSON.parse(fs.readFileSync('./saldos.json', 'utf8'));
-  } catch (e) {}
+  const saldoActual = await consultarSaldo(steamid);
 
-  const saldoActual = saldos[steamid] || 0;
   if (saldoActual < item.precio) {
     await interaction.reply({
       content: `❌ No tienes suficientes Argentums para comprar **${item.label}** (${item.precio} Argentums). Tu saldo: ${saldoActual} 🪙`,
@@ -142,16 +131,16 @@ export async function handleModal(interaction) {
     return;
   }
 
-  saldos[steamid] = saldoActual - item.precio;
-  fs.writeFileSync('./saldos.json', JSON.stringify(saldos, null, 2));
+  await sumarSaldo(steamid, -item.precio);
+
+  const nuevoSaldo = saldoActual - item.precio;
 
   await interaction.reply({
-    content: `✅ ¡Compra realizada con éxito! Has adquirido **${item.label}** por ${item.precio} Argentums 🪙\nTu nuevo saldo es: **${saldos[steamid]} Argentums**\n¡Gracias por tu compra, sobreviviente! 🏕️`,
+    content: `✅ ¡Compra realizada con éxito! Has adquirido **${item.label}** por ${item.precio} Argentums 🪙\nTu nuevo saldo es: **${nuevoSaldo} Argentums**\n¡Gracias por tu compra, sobreviviente! 🏕️`,
     flags: 4096
   });
 }
 
-// Comando /darargentum SOLO para admins (por permisos y por código)
 export const darArgentumData = new SlashCommandBuilder()
   .setName('darargentum')
   .setDescription('Regala Argentums a un usuario 💸')
@@ -168,7 +157,6 @@ export const darArgentumData = new SlashCommandBuilder()
 export async function darArgentum(interaction) {
   const adminRoleId = '1399948089627906055';
 
-  // Verifica si el usuario tiene el rol de administrador
   if (!interaction.member.roles.cache.has(adminRoleId)) {
     await interaction.reply({
       content: '🚫 ¡Solo los administradores con el rol adecuado pueden usar este comando! 👮‍♂️',
@@ -180,23 +168,16 @@ export async function darArgentum(interaction) {
   const steamid = interaction.options.getString('steamid');
   const cantidad = interaction.options.getInteger('cantidad');
 
-  // Leer y actualizar el saldo
-  let saldos = {};
-  try {
-    saldos = JSON.parse(fs.readFileSync('./saldos.json', 'utf8'));
-  } catch (e) {}
+  await sumarSaldo(steamid, cantidad);
 
-  saldos[steamid] = (saldos[steamid] || 0) + cantidad;
-
-  fs.writeFileSync('./saldos.json', JSON.stringify(saldos, null, 2));
+  const nuevoSaldo = await consultarSaldo(steamid);
 
   await interaction.reply({
-    content: `🎉 ¡Listo! Has dado **${cantidad} Argentums** a \`${steamid}\` 💸\n¡Que la suerte te acompañe en Chernarus! 🌄`,
+    content: `🎉 ¡Listo! Has dado **${cantidad} Argentums** a \`${steamid}\` 💸\nNuevo saldo: **${nuevoSaldo} Argentums**\n¡Que la suerte te acompañe en Chernarus! 🌄`,
     flags: 4096
   });
 }
 
-// Comando /argentum para consultar saldo
 export const argentumData = new SlashCommandBuilder()
   .setName('argentum')
   .setDescription('Consulta cuántos Argentums tienes 🪙')
@@ -208,12 +189,7 @@ export const argentumData = new SlashCommandBuilder()
 
 export async function argentum(interaction) {
   const steamid = interaction.options.getString('steamid');
-  let saldos = {};
-  try {
-    saldos = JSON.parse(fs.readFileSync('./saldos.json', 'utf8'));
-  } catch (e) {}
-
-  const cantidad = saldos[steamid] || 0;
+  const cantidad = await consultarSaldo(steamid);
 
   await interaction.reply({
     content: `🪙 Tu saldo actual es: **${cantidad} Argentums**\n¡Sigue sobreviviendo y acumulando más! 🌟`,
