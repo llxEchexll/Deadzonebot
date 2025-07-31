@@ -1,0 +1,6 @@
+[
+  { "nombre": "AKM", "precio": 50 },
+  { "nombre": "Mochila Militar", "precio": 30 },
+  { "nombre": "Chaleco Antibalas", "precio": 40 },
+  { "nombre": "Lata de comida", "precio": 10 }
+]
